@@ -21,7 +21,8 @@ const Dashboard = () => {
       case "reports":
         return <ReportsAnalytics />;
       case "resources":
-        return <ResourceManagement />;
+        return <ResourceManagement hospitalId="testHospital001" />;
+
       case "notifications":
         return <NotificationCenter />;
       case "profile":

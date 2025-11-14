@@ -1,135 +1,226 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { useState, useEffect } from "react";
+import { db } from "../firebase";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Plus, Minus } from "lucide-react";
 
-export default function ResourceManagement({ hospitalName }) {
+/* ------------------ Reusable Counter Component ------------------ */
+const Counter = ({ label, value, onChange }) => {
+  return (
+    <div className="space-y-2">
+      <label className="block text-sm font-medium">{label}</label>
+
+      <Input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full"
+      />
+
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onChange(Math.max(0, value - 1))}
+          className="flex-1"
+        >
+          <Minus className="w-4 h-4" />
+        </Button>
+
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onChange(value + 1)}
+          className="flex-1"
+        >
+          <Plus className="w-4 h-4" />
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+export default function ResourceManagement({ hospitalId }) {
+  const [loading, setLoading] = useState(true);
+
   const [resources, setResources] = useState({
-    beds: { total: 250, occupied: 180, available: 70 },
-    icuBeds: { total: 45, occupied: 38, available: 7 },
-    ventilators: { total: 30, occupied: 12, available: 18 },
-    oxygenCylinders: { total: 200, available: 150 },
-    ambulances: { total: 15, active: 12, maintenance: 3 },
+    beds: { total: 0, occupied: 0 },
+    icuBeds: { total: 0, occupied: 0 },
+    ventilators: { total: 0, occupied: 0 }, // ✅ use occupied
+    oxygenCylinders: { available: 0 },
+    ambulances: { total: 0, active: 0, maintenance: 0 },
   });
 
   const [bloodBank, setBloodBank] = useState({
-    "O+": 120,
-    "O-": 45,
-    "A+": 95,
-    "A-": 30,
-    "B+": 85,
-    "B-": 25,
-    "AB+": 40,
-    "AB-": 10,
+    "O+": 0,
+    "O-": 0,
+    "A+": 0,
+    "A-": 0,
+    "B+": 0,
+    "B-": 0,
+    "AB+": 0,
+    "AB-": 0,
   });
 
-  const updateResource = (key, field, value) => {
-    setResources((prev) => ({
-      ...prev,
-      [key]: { ...prev[key], [field]: value },
-    }));
+  /* ---------------- Load Data From Firebase ---------------- */
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!hospitalId) {
+        console.error("❌ Missing hospitalId in ResourceManagement");
+        return;
+      }
+
+      const ref = doc(db, "hospitals", hospitalId, "resources", "resourceInfo");
+      const snapshot = await getDoc(ref);
+
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+
+        setResources({
+          beds: data.beds ?? { total: 0, occupied: 0 },
+          icuBeds: data.icuBeds ?? { total: 0, occupied: 0 },
+          ventilators: data.ventilators ?? { total: 0, occupied: 0 }, // ✅ ensure occupied exists
+          oxygenCylinders: data.oxygenCylinders ?? { available: 0 },
+          ambulances: data.ambulances ?? { total: 0, active: 0, maintenance: 0 },
+        });
+
+        setBloodBank(data.bloodBank ?? bloodBank);
+      } else {
+        await setDoc(ref, {
+          ...resources,
+          bloodBank,
+        });
+      }
+
+      setLoading(false);
+    };
+
+    fetchData();
+  }, [hospitalId]);
+
+  /* ---------------- Save to Firebase ---------------- */
+  const saveToFirestore = async (updatedResources, updatedBloodBank) => {
+    const ref = doc(db, "hospitals", hospitalId, "resources", "resourceInfo");
+
+    await updateDoc(ref, {
+      ...updatedResources,
+      bloodBank: updatedBloodBank,
+    });
   };
 
-  const updateBlood = (group, value) => {
-    setBloodBank((prev) => ({ ...prev, [group]: Math.max(0, value) }));
+  /* ------- Update Resource ------------------- */
+  const updateResource = (section, field, value) => {
+    const updated = {
+      ...resources,
+      [section]: { ...resources[section], [field]: Math.max(0, value) },
+    };
+    setResources(updated);
+    saveToFirestore(updated, bloodBank);
   };
+
+  /* ------- Update Blood Bank ------------------- */
+  const updateBlood = (group, value) => {
+    const updated = { ...bloodBank, [group]: Math.max(0, value) };
+    setBloodBank(updated);
+    saveToFirestore(resources, updated);
+  };
+
+  const calculateAvailable = (total, used) => Math.max(0, total - used);
+
+  if (loading) return <div className="text-lg font-semibold">Loading...</div>;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Resource Management</h1>
-        <p className="text-gray-600 mt-1">Update and manage hospital resources</p>
-      </div>
+      <h1 className="text-3xl font-bold">Resource Management</h1>
+      <p className="text-gray-600">Edit values — auto-saves to Firebase</p>
 
-      {/* Beds Management */}
+      {/* -------- BED MANAGEMENT -------- */}
       <Card>
         <CardHeader>
           <CardTitle>Bed Management</CardTitle>
-          <CardDescription>Manage bed availability and occupancy</CardDescription>
         </CardHeader>
+
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700">Total Beds</label>
-              <Input
-                type="number"
-                value={resources.beds.total}
-                onChange={(e) => updateResource("beds", "total", parseInt(e.target.value))}
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700">Occupied</label>
-              <Input
-                type="number"
-                value={resources.beds.occupied}
-                onChange={(e) => updateResource("beds", "occupied", parseInt(e.target.value))}
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700">Available</label>
-              <div className="text-3xl font-bold text-green-600">{resources.beds.available}</div>
+          <div className="grid grid-cols-1 md-grid-cols-3 gap-6">
+            <Counter
+              label="Total Beds"
+              value={resources.beds.total}
+              onChange={(v) => updateResource("beds", "total", v)}
+            />
+
+            <Counter
+              label="Occupied Beds"
+              value={resources.beds.occupied}
+              onChange={(v) => updateResource("beds", "occupied", v)}
+            />
+
+            <div className="flex flex-col justify-end">
+              <label className="text-sm">Available</label>
+              <div className="text-3xl font-bold text-green-600">
+                {calculateAvailable(resources.beds.total, resources.beds.occupied)}
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* ICU Beds */}
+      {/* -------- ICU + VENTILATOR -------- */}
       <Card>
         <CardHeader>
           <CardTitle>ICU Beds & Ventilators</CardTitle>
         </CardHeader>
+
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <h3 className="font-semibold text-gray-900">ICU Beds</h3>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs text-gray-600">Total</label>
-                  <Input
-                    type="number"
-                    value={resources.icuBeds.total}
-                    onChange={(e) => updateResource("icuBeds", "total", parseInt(e.target.value))}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-600">Occupied</label>
-                  <Input
-                    type="number"
-                    value={resources.icuBeds.occupied}
-                    onChange={(e) => updateResource("icuBeds", "occupied", parseInt(e.target.value))}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-600">Available</label>
-                  <div className="text-2xl font-bold text-green-600">{resources.icuBeds.available}</div>
+            {/* ICU BEDS */}
+            <div className="space-y-4">
+              <h3 className="font-semibold">ICU Beds</h3>
+
+              <Counter
+                label="Total ICU Beds"
+                value={resources.icuBeds.total}
+                onChange={(v) => updateResource("icuBeds", "total", v)}
+              />
+
+              <Counter
+                label="Occupied ICU Beds"
+                value={resources.icuBeds.occupied}
+                onChange={(v) => updateResource("icuBeds", "occupied", v)}
+              />
+
+              <div>
+                <label className="text-sm">Available</label>
+                <div className="text-2xl font-bold text-green-600">
+                  {calculateAvailable(resources.icuBeds.total, resources.icuBeds.occupied)}
                 </div>
               </div>
             </div>
-            <div className="space-y-3">
-              <h3 className="font-semibold text-gray-900">Ventilators</h3>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs text-gray-600">Total</label>
-                  <Input
-                    type="number"
-                    value={resources.ventilators.total}
-                    onChange={(e) => updateResource("ventilators", "total", parseInt(e.target.value))}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-600">In Use</label>
-                  <Input
-                    type="number"
-                    value={resources.ventilators.occupied}
-                    onChange={(e) => updateResource("ventilators", "occupied", parseInt(e.target.value))}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-600">Available</label>
-                  <div className="text-2xl font-bold text-green-600">{resources.ventilators.available}</div>
+
+            {/* VENTILATORS */}
+            <div className="space-y-4">
+              <h3 className="font-semibold">Ventilators</h3>
+
+              <Counter
+                label="Total Ventilators"
+                value={resources.ventilators.total}
+                onChange={(v) => updateResource("ventilators", "total", v)}
+              />
+
+              <Counter
+                label="Occupied Ventilators"
+                value={resources.ventilators.occupied}
+                onChange={(v) => updateResource("ventilators", "occupied", v)}
+              />
+
+              <div>
+                <label className="text-sm">Available</label>
+                <div className="text-2xl font-bold text-green-600">
+                  {calculateAvailable(
+                    resources.ventilators.total,
+                    resources.ventilators.occupied
+                  )}
                 </div>
               </div>
             </div>
@@ -137,77 +228,78 @@ export default function ResourceManagement({ hospitalName }) {
         </CardContent>
       </Card>
 
-      {/* Oxygen & Ambulances */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Oxygen Cylinders</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700">Available Cylinders</label>
-              <Input
-                type="number"
-                value={resources.oxygenCylinders.available}
-                onChange={(e) =>
-                  updateResource("oxygenCylinders", "available", parseInt(e.target.value))
-                }
-                className="w-full mt-2"
-              />
-            </div>
-            <Button className="w-full bg-blue-600 hover:bg-blue-700">Add Cylinders</Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Ambulances</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs text-gray-600">Total</label>
-                <div className="text-2xl font-bold text-blue-600">{resources.ambulances.total}</div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-600">Active</label>
-                <div className="text-2xl font-bold text-green-600">{resources.ambulances.active}</div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-600">Maintenance</label>
-                <div className="text-2xl font-bold text-orange-600">{resources.ambulances.maintenance}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Blood Bank Management */}
+      {/* -------- OXYGEN -------- */}
       <Card>
         <CardHeader>
-          <CardTitle>Blood Bank Management</CardTitle>
-          <CardDescription>Add or remove blood units by group</CardDescription>
+          <CardTitle>Oxygen Cylinders</CardTitle>
         </CardHeader>
+
+        <CardContent>
+          <Counter
+            label="Available Oxygen Cylinders"
+            value={resources.oxygenCylinders.available}
+            onChange={(v) => updateResource("oxygenCylinders", "available", v)}
+          />
+        </CardContent>
+      </Card>
+
+      {/* -------- AMBULANCES -------- */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Ambulances</CardTitle>
+        </CardHeader>
+
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Counter
+              label="Total Ambulances"
+              value={resources.ambulances.total}
+              onChange={(v) => updateResource("ambulances", "total", v)}
+            />
+
+            <Counter
+              label="Active"
+              value={resources.ambulances.active}
+              onChange={(v) => updateResource("ambulances", "active", v)}
+            />
+
+            <Counter
+              label="Under Maintenance"
+              value={resources.ambulances.maintenance}
+              onChange={(v) => updateResource("ambulances", "maintenance", v)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* -------- BLOOD BANK -------- */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Blood Bank</CardTitle>
+        </CardHeader>
+
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {Object.entries(bloodBank).map(([group, units]) => (
-              <div key={group} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="text-lg font-bold text-blue-600 mb-3">{group}</div>
-                <div className="text-3xl font-bold text-gray-900 mb-3">{units}</div>
-                <div className="flex gap-2">
+              <div key={group} className="p-4 bg-gray-50 rounded-lg border">
+                <div className="text-lg font-bold text-blue-600 mb-2">{group}</div>
+
+                <div className="text-3xl font-bold">{units}</div>
+
+                <div className="flex gap-2 mt-3">
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => updateBlood(group, units - 1)}
                     className="flex-1"
+                    onClick={() => updateBlood(group, units - 1)}
                   >
                     <Minus className="w-4 h-4" />
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => updateBlood(group, units + 1)}
                     className="flex-1"
+                    onClick={() => updateBlood(group, units + 1)}
                   >
                     <Plus className="w-4 h-4" />
                   </Button>
