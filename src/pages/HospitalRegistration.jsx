@@ -1,0 +1,150 @@
+import React from "react";
+import { useNavigate } from "react-router-dom";
+
+export default function HospitalRegistration() {
+  const navigate = useNavigate();
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    // Simulate successful registration (you can replace this with API call)
+    setTimeout(() => {
+      alert("Hospital registered successfully!");
+      navigate("/Dashboard"); // Redirect to dashboard
+    }, 800);
+  };
+
+  return (
+    <div className="flex flex-col md:flex-row min-h-screen font-sans">
+      {/* Left section (Blue panel) */}
+      <div className="md:w-1/3 w-full bg-gradient-to-br from-blue-700 to-blue-500 flex flex-col justify-center items-center text-white p-10 rounded-r-3xl shadow-lg">
+        <div className="text-center space-y-4">
+          <div className="flex items-center justify-center space-x-2">
+            <img
+              src="https://img.icons8.com/ios-filled/50/ffffff/hospital-room.png"
+              alt="logo"
+              className="w-8 h-8"
+            />
+            <h1 className="text-3xl font-bold tracking-tight">CarePulse</h1>
+          </div>
+          <p className="text-base md:text-lg text-blue-100 max-w-xs mx-auto leading-relaxed">
+            Streamline your hospital onboarding with CarePulse — secure,
+            verified, and compliant.
+          </p>
+        </div>
+      </div>
+
+      {/* Right section (White form) */}
+      <div className="md:w-2/3 w-full bg-white flex items-center justify-center p-10 md:p-20">
+        <div className="w-full max-w-lg space-y-8">
+          <h2 className="text-3xl font-bold text-center text-blue-700">
+            Hospital Registration Details
+          </h2>
+
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600">
+                Hospital Name
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="Enter hospital name"
+                className="mt-1 w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-600">
+                Hospital Registration Number
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="Official registration number"
+                className="mt-1 w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-600">
+                Type of Hospital
+              </label>
+              <select
+                required
+                className="mt-1 w-full border border-gray-300 rounded-lg p-3 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              >
+                <option>Select Type</option>
+                <option>Private</option>
+                <option>Government</option>
+                <option>Multi-specialty</option>
+                <option>Clinic</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-600">
+                Location
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="City / State"
+                className="mt-1 w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-semibold text-gray-600">
+                  Contact Number
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Helpline / Reception"
+                  className="mt-1 w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-semibold text-gray-600">
+                  Official Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="contact@hospital.org"
+                  className="mt-1 w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-600">
+                Website (Optional)
+              </label>
+              <input
+                type="url"
+                placeholder="https://hospitalwebsite.com"
+                className="mt-1 w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="text-sm text-gray-600 space-y-1">
+              <p>• The hospital guarantees the accuracy of submitted information.</p>
+              <p>• The hospital agrees to update details regularly.</p>
+              <p>• Information may be verified by authorities.</p>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition duration-200"
+            >
+              Submit Registration
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
