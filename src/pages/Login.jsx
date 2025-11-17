@@ -1,7 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "../firebase"; 
+import {
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail
+} from "firebase/auth";
+import { auth, db } from "../firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -9,7 +13,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ✅ Login Handler
+  // LOGIN HANDLER
   const handleLogin = async (e) => {
     e.preventDefault();
 
@@ -20,42 +24,56 @@ const Login = () => {
 
     try {
       setLoading(true);
-      await signInWithEmailAndPassword(auth, email, password);
-      alert("✅ Login Successful!");
-      navigate("/HospitalRegistration"); // Redirect after successful login
+
+      // Firebase login
+      const userCred = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCred.user;
+
+      // Check if hospital document exists
+      const docRef = doc(db, "hospitals", user.uid);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        // User already registered → Go to dashboard
+        localStorage.setItem("hospitalID", user.uid);
+        navigate("/dashboard");
+      } else {
+        // User not registered yet → Go to hospital registration
+        alert("Please complete your hospital registration.");
+        setTimeout(() => {
+          navigate("/HospitalRegistration");
+        }, 300);
+      }
+
     } catch (error) {
-      alert("❌ Invalid login: " + error.message);
+      alert("Invalid login: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Forgot Password Handler
-  const handleForgotPassword = async (e) => {
-    e.preventDefault();
+  // PASSWORD RESET
+  const handleForgotPassword = async () => {
     const userEmail = prompt("Enter your registered email:");
 
     if (!userEmail) return;
 
     try {
       await sendPasswordResetEmail(auth, userEmail);
-      alert("✅ Password reset link sent! Check your email.");
+      alert("Password reset link sent! Check your email.");
     } catch (error) {
-      alert("❌ " + error.message);
+      alert(error.message);
     }
   };
 
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 to-gray-900 text-white font-[Poppins]">
-      {/* Overlay */}
       <div className="absolute inset-0 bg-black opacity-50"></div>
 
-      {/* Navbar */}
       <nav className="absolute top-0 left-0 w-full flex items-center justify-between p-6 bg-transparent z-10">
         <div className="text-2xl font-bold">🏥 CarePulse</div>
       </nav>
 
-      {/* Login Container */}
       <div className="relative z-10 bg-gray-800 bg-opacity-90 p-10 rounded-2xl shadow-2xl w-96 text-center">
         <div className="text-5xl mb-6">⚕</div>
         <h2 className="text-2xl font-semibold mb-6">Hospital Login Portal</h2>
@@ -66,9 +84,8 @@ const Login = () => {
             placeholder="Hospital Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="p-3 rounded-md border border-gray-600 bg-gray-900 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="p-3 rounded-md border border-gray-600 bg-gray-900 text-white"
             required
-            autoComplete="off"
           />
 
           <input
@@ -76,9 +93,8 @@ const Login = () => {
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="p-3 rounded-md border border-gray-600 bg-gray-900 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="p-3 rounded-md border border-gray-600 bg-gray-900 text-white"
             required
-            autoComplete="new-password"
           />
 
           <button
@@ -102,23 +118,18 @@ const Login = () => {
           </div>
         </form>
 
-        {/* Registration Links */}
+        {/* Bottom Links */}
         <div className="mt-6 text-sm text-gray-300 space-y-2">
           <button
-            onClick={() => navigate("/Signup")}
+            onClick={() => navigate("/signup")}
             className="block w-full text-blue-400 hover:underline"
           >
-            Create Patient Account
+            Signup
           </button>
-          <button
-            onClick={() => navigate("/HospitalRegistration")}
-            className="block w-full text-blue-400 hover:underline"
-          >
-            Register Your Hospital
-          </button>
-          <a href="#" className="block w-full text-blue-400 hover:underline">
+
+          <button className="block w-full text-blue-400 hover:underline">
             Need Help?
-          </a>
+          </button>
         </div>
       </div>
     </div>

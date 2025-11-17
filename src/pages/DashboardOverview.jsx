@@ -1,33 +1,24 @@
 import React from "react";
 import useHospitalResources from "../hooks/useHospitalResources";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "../components/ui/card";
 
-export default function DashboardOverview({ hospitalName }) {
-  const hospitalId = "testHospital001";
-  const data = useHospitalResources(hospitalId);
+export default function DashboardOverview({ hospitalId }) {
+  const { resources, loading } = useHospitalResources(hospitalId);
 
-  if (!data) return <p>Loading data...</p>;
+  if (loading) return <p>Loading data...</p>;
+  if (!resources) return <p>No resource data found.</p>;
 
-  /* ---- Handle BOTH nested + flat structures ---- */
-  const beds =
-    data.resources?.beds ||
-    data.beds ||
-    { total: 0, occupied: 0 };
-
-  const icuBeds =
-    data.resources?.icuBeds ||
-    data.icuBeds ||
-    { total: 0, occupied: 0 };
-
-  const ventilators =
-    data.resources?.ventilators ||
-    data.ventilators ||
-    { total: 0, occupied: 0 };
-
-  const bloodBank =
-    data.bloodBank ||
-    data.resources?.bloodBank ||
-    {};
+  /* ---- Ensure safe fallback values ---- */
+  const beds = resources.beds || { total: 0, occupied: 0 };
+  const icuBeds = resources.icuBeds || { total: 0, occupied: 0 };
+  const ventilators = resources.ventilators || { total: 0, occupied: 0 };
+  const bloodBank = resources.bloodBank || {};
 
   /* ---- Dashboard Stats ---- */
   const stats = [
@@ -96,31 +87,26 @@ export default function DashboardOverview({ hospitalName }) {
                 {stat.value}
               </div>
               <div className="text-xs text-gray-500">
-                {stat.occupied !== undefined && (
-                  <p>Occupied: {stat.occupied}</p>
-                )}
-                {stat.available !== undefined && (
-                  <p>Available: {stat.available}</p>
-                )}
-                {stat.critical !== undefined && (
-                  <p>Critical Groups: {stat.critical}</p>
-                )}
+                {"occupied" in stat && <p>Occupied: {stat.occupied}</p>}
+                {"available" in stat && <p>Available: {stat.available}</p>}
+                {"critical" in stat && <p>Critical Groups: {stat.critical}</p>}
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Blood Bank */}
+      {/* Blood Bank Status */}
       <Card>
         <CardHeader>
           <CardTitle>Blood Bank Status</CardTitle>
-          <CardDescription>Live inventory from Firebase</CardDescription>
+          <CardDescription>Live inventory</CardDescription>
         </CardHeader>
+
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {bloodGroups.map((b, i) => (
-              <div key={i} className="p-4 bg-gray-50 rounded-lg border">
+            {bloodGroups.map((b, idx) => (
+              <div key={idx} className="p-4 bg-gray-50 rounded-lg border">
                 <div className="text-lg font-bold">{b.group}</div>
                 <div className="text-2xl font-bold">{b.units}</div>
                 <div

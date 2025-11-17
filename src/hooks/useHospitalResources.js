@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 
-export default function useHospitalResources(hospitalId = "testHospital001") {
+export default function useHospitalResources(hospitalId) {
   const [resources, setResources] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -21,34 +21,37 @@ export default function useHospitalResources(hospitalId = "testHospital001") {
   };
 
   useEffect(() => {
-     if (!hospitalId) {
+    if (!hospitalId) {
       console.log("❌ hospitalId is missing!");
       return;
     }
 
     const ref = doc(db, "hospitals", hospitalId, "resources", "resourceInfo");
 
-    async function loadData() {
+    // 1️⃣ Load document once
+    const load = async () => {
       const snap = await getDoc(ref);
 
       if (!snap.exists()) {
-        await setDoc(ref, defaultData);
+        await setDoc(ref, defaultData, { merge: true });
         setResources(defaultData);
       } else {
         setResources(snap.data());
       }
 
       setLoading(false);
-    }
+    };
 
-    loadData();
+    load();
 
-    const unsub = onSnapshot(ref, (docsnap) => {
-      setResources(docsnap.data());
+    // 2️⃣ Real-time listener
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        setResources(snap.data());
+      }
     });
 
     return () => unsub();
-
   }, [hospitalId]);
 
   return { resources, loading };

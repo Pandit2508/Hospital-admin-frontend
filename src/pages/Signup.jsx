@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../firebase"; // ✅ Ensure firebase.js exists and exports `auth`
+import { auth } from "../firebase"; // Make sure auth is exported from firebase.js
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -20,9 +20,15 @@ const Signup = () => {
 
     try {
       setLoading(true);
+
+      // Create user in Firebase
       await createUserWithEmailAndPassword(auth, email, password);
+
       alert(`✅ Account created successfully for ${hospitalId}`);
-      navigate("/login"); // Redirect after signup
+
+      // Redirect to Hospital Registration after signup
+      navigate("/HospitalRegistration");
+
     } catch (error) {
       alert("❌ Error: " + error.message);
     } finally {
@@ -38,7 +44,7 @@ const Signup = () => {
           'url("https://www.shutterstock.com/shutterstock/videos/1098703147/thumb/1.jpg?ip=x480")',
       }}
     >
-      {/* Overlay */}
+      {/* Dark Overlay */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
 
       {/* Navbar */}
@@ -54,6 +60,7 @@ const Signup = () => {
         </h2>
 
         <form onSubmit={handleSignup} className="flex flex-col gap-4">
+
           <input
             type="text"
             placeholder="Hospital ID / Username"

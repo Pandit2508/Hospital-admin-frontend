@@ -45,15 +45,15 @@ const Counter = ({ label, value, onChange }) => {
 export default function ResourceManagement({ hospitalId }) {
   const [loading, setLoading] = useState(true);
 
-  const [resources, setResources] = useState({
+  const defaultResources = {
     beds: { total: 0, occupied: 0 },
     icuBeds: { total: 0, occupied: 0 },
-    ventilators: { total: 0, occupied: 0 }, // ✅ use occupied
+    ventilators: { total: 0, occupied: 0 },
     oxygenCylinders: { available: 0 },
     ambulances: { total: 0, active: 0, maintenance: 0 },
-  });
+  };
 
-  const [bloodBank, setBloodBank] = useState({
+  const defaultBloodBank = {
     "O+": 0,
     "O-": 0,
     "A+": 0,
@@ -62,7 +62,10 @@ export default function ResourceManagement({ hospitalId }) {
     "B-": 0,
     "AB+": 0,
     "AB-": 0,
-  });
+  };
+
+  const [resources, setResources] = useState(defaultResources);
+  const [bloodBank, setBloodBank] = useState(defaultBloodBank);
 
   /* ---------------- Load Data From Firebase ---------------- */
   useEffect(() => {
@@ -79,18 +82,24 @@ export default function ResourceManagement({ hospitalId }) {
         const data = snapshot.data();
 
         setResources({
-          beds: data.beds ?? { total: 0, occupied: 0 },
-          icuBeds: data.icuBeds ?? { total: 0, occupied: 0 },
-          ventilators: data.ventilators ?? { total: 0, occupied: 0 }, // ✅ ensure occupied exists
-          oxygenCylinders: data.oxygenCylinders ?? { available: 0 },
-          ambulances: data.ambulances ?? { total: 0, active: 0, maintenance: 0 },
+          beds: data.beds ?? defaultResources.beds,
+          icuBeds: data.icuBeds ?? defaultResources.icuBeds,
+          ventilators: data.ventilators ?? defaultResources.ventilators,
+          oxygenCylinders:
+            data.oxygenCylinders ?? defaultResources.oxygenCylinders,
+          ambulances: data.ambulances ?? defaultResources.ambulances,
         });
 
-        setBloodBank(data.bloodBank ?? bloodBank);
+        setBloodBank(data.bloodBank ?? defaultBloodBank);
       } else {
+        // First-time create with defaults
         await setDoc(ref, {
-          ...resources,
-          bloodBank,
+          beds: defaultResources.beds,
+          icuBeds: defaultResources.icuBeds,
+          ventilators: defaultResources.ventilators,
+          oxygenCylinders: defaultResources.oxygenCylinders,
+          ambulances: defaultResources.ambulances,
+          bloodBank: defaultBloodBank,
         });
       }
 
@@ -100,36 +109,44 @@ export default function ResourceManagement({ hospitalId }) {
     fetchData();
   }, [hospitalId]);
 
-  /* ---------------- Save to Firebase ---------------- */
-  const saveToFirestore = async (updatedResources, updatedBloodBank) => {
+  /* ---------------- Save updated values safely ---------------- */
+  const saveToFirestore = async (path, value) => {
     const ref = doc(db, "hospitals", hospitalId, "resources", "resourceInfo");
 
+    // Updates ONLY the specific nested field → prevents overwriting entire document
     await updateDoc(ref, {
-      ...updatedResources,
-      bloodBank: updatedBloodBank,
+      [path]: value,
     });
   };
 
-  /* ------- Update Resource ------------------- */
+  /* -------- Update Resource Section (beds, icuBeds, ventilators etc.) -------- */
   const updateResource = (section, field, value) => {
     const updated = {
       ...resources,
       [section]: { ...resources[section], [field]: Math.max(0, value) },
     };
+
     setResources(updated);
-    saveToFirestore(updated, bloodBank);
+
+    // update only "beds.total" etc.
+    saveToFirestore(`${section}.${field}`, Math.max(0, value));
   };
 
-  /* ------- Update Blood Bank ------------------- */
+  /* ---------------- Update Blood Bank ---------------- */
   const updateBlood = (group, value) => {
     const updated = { ...bloodBank, [group]: Math.max(0, value) };
+
     setBloodBank(updated);
-    saveToFirestore(resources, updated);
+
+    // update only specific blood group value
+    saveToFirestore(`bloodBank.${group}`, Math.max(0, value));
   };
 
-  const calculateAvailable = (total, used) => Math.max(0, total - used);
+  const calculateAvailable = (total, used) =>
+    Math.max(0, total - used);
 
-  if (loading) return <div className="text-lg font-semibold">Loading...</div>;
+  if (loading)
+    return <div className="text-lg font-semibold">Loading...</div>;
 
   return (
     <div className="space-y-6">
@@ -143,7 +160,7 @@ export default function ResourceManagement({ hospitalId }) {
         </CardHeader>
 
         <CardContent>
-          <div className="grid grid-cols-1 md-grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Counter
               label="Total Beds"
               value={resources.beds.total}
@@ -159,14 +176,17 @@ export default function ResourceManagement({ hospitalId }) {
             <div className="flex flex-col justify-end">
               <label className="text-sm">Available</label>
               <div className="text-3xl font-bold text-green-600">
-                {calculateAvailable(resources.beds.total, resources.beds.occupied)}
+                {calculateAvailable(
+                  resources.beds.total,
+                  resources.beds.occupied
+                )}
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* -------- ICU + VENTILATOR -------- */}
+      {/* -------- ICU & VENTILATORS -------- */}
       <Card>
         <CardHeader>
           <CardTitle>ICU Beds & Ventilators</CardTitle>
@@ -193,7 +213,10 @@ export default function ResourceManagement({ hospitalId }) {
               <div>
                 <label className="text-sm">Available</label>
                 <div className="text-2xl font-bold text-green-600">
-                  {calculateAvailable(resources.icuBeds.total, resources.icuBeds.occupied)}
+                  {calculateAvailable(
+                    resources.icuBeds.total,
+                    resources.icuBeds.occupied
+                  )}
                 </div>
               </div>
             </div>
@@ -238,7 +261,9 @@ export default function ResourceManagement({ hospitalId }) {
           <Counter
             label="Available Oxygen Cylinders"
             value={resources.oxygenCylinders.available}
-            onChange={(v) => updateResource("oxygenCylinders", "available", v)}
+            onChange={(v) =>
+              updateResource("oxygenCylinders", "available", v)
+            }
           />
         </CardContent>
       </Card>
@@ -266,7 +291,9 @@ export default function ResourceManagement({ hospitalId }) {
             <Counter
               label="Under Maintenance"
               value={resources.ambulances.maintenance}
-              onChange={(v) => updateResource("ambulances", "maintenance", v)}
+              onChange={(v) =>
+                updateResource("ambulances", "maintenance", v)
+              }
             />
           </div>
         </CardContent>
@@ -281,8 +308,13 @@ export default function ResourceManagement({ hospitalId }) {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {Object.entries(bloodBank).map(([group, units]) => (
-              <div key={group} className="p-4 bg-gray-50 rounded-lg border">
-                <div className="text-lg font-bold text-blue-600 mb-2">{group}</div>
+              <div
+                key={group}
+                className="p-4 bg-gray-50 rounded-lg border"
+              >
+                <div className="text-lg font-bold text-blue-600 mb-2">
+                  {group}
+                </div>
 
                 <div className="text-3xl font-bold">{units}</div>
 
@@ -291,10 +323,13 @@ export default function ResourceManagement({ hospitalId }) {
                     size="sm"
                     variant="outline"
                     className="flex-1"
-                    onClick={() => updateBlood(group, units - 1)}
+                    onClick={() =>
+                      updateBlood(group, Math.max(0, units - 1))
+                    }
                   >
                     <Minus className="w-4 h-4" />
                   </Button>
+
                   <Button
                     size="sm"
                     variant="outline"

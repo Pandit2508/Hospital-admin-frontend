@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { db } from "../firebase"; // Firestore reference
-import { collection, addDoc } from "firebase/firestore";
+import { db, auth } from "../firebase";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 
 export default function HospitalRegistration() {
   const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     registrationNumber: "",
@@ -15,42 +17,104 @@ export default function HospitalRegistration() {
     website: "",
   });
 
-  const [loading, setLoading] = useState(false); // loading state
+  // -----------------------------------------------------
+  // 🔥 Load logged-in user
+  // -----------------------------------------------------
+  useEffect(() => {
+    const unsub = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        setCurrentUser(user);
+
+        // -----------------------------------------------------
+        // 🔗 Check if user already linked to a hospital
+        // -----------------------------------------------------
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists() && userSnap.data().hospitalId) {
+          navigate(`/dashboard/${userSnap.data().hospitalId}`);
+        }
+      } else {
+        setCurrentUser(null);
+      }
+    });
+    return () => unsub();
+  }, [navigate]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // -----------------------------------------------------
+  // 🔥 Handle Registration
+  // -----------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true); // start loading
+    setLoading(true);
 
     try {
-      // Add to Firestore
-      await addDoc(collection(db, "hospitals"), formData);
+      if (!currentUser) {
+        alert("You must be logged in.");
+        return;
+      }
 
-      alert("Hospital registered successfully!");
-      setFormData({
-        name: "",
-        registrationNumber: "",
-        type: "",
-        location: "",
-        contact: "",
-        email: "",
-        website: "",
-      }); // reset form
-      navigate("/Dashboard"); // redirect
+      const hospitalId = formData.registrationNumber.trim();
+      if (!hospitalId) {
+        alert("Invalid Hospital Registration Number");
+        return;
+      }
+
+      const hospitalRef = doc(db, "hospitals", hospitalId);
+      const hospitalSnap = await getDoc(hospitalRef);
+
+      if (!hospitalSnap.exists()) {
+        // 🏥 Create NEW hospital
+        await setDoc(hospitalRef, {
+          ...formData,
+          createdAt: Date.now(),
+        });
+
+        // 🧱 Create default resources ONLY once
+        const resourceRef = doc(db, "hospitals", hospitalId, "resources", "resourceInfo");
+        const resourceSnap = await getDoc(resourceRef);
+        if (!resourceSnap.exists()) {
+          await setDoc(resourceRef, {
+            beds: { total: 0, occupied: 0 },
+            icuBeds: { total: 0, occupied: 0 },
+            ventilators: { total: 0, occupied: 0 },
+            oxygenCylinders: { available: 0 },
+            ambulances: { total: 0, active: 0, maintenance: 0 },
+            bloodBank: {
+              "O+": 0, "O-": 0,
+              "A+": 0, "A-": 0,
+              "B+": 0, "B-": 0,
+              "AB+": 0, "AB-": 0,
+            },
+          });
+        }
+
+        alert("Hospital Registered Successfully!");
+      } else {
+        // 🔗 Hospital exists → just link user
+        alert("Hospital already exists. Your account is linked.");
+      }
+
+      // 👤 Map user to this hospital (non-destructive merge)
+      await setDoc(doc(db, "users", currentUser.uid), { hospitalId }, { merge: true });
+
+      // 🔀 Redirect to dashboard
+      navigate(`/dashboard/${hospitalId}`);
     } catch (error) {
-      console.error("Error adding document: ", error);
-      alert("Failed to register hospital. Please try again.");
+      console.error(error);
+      alert("Registration failed. Try again.");
     } finally {
-      setLoading(false); // stop loading
+      setLoading(false);
     }
   };
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen font-sans">
-      {/* Left section */}
+      {/* Left Panel */}
       <div className="md:w-1/3 w-full bg-gradient-to-br from-blue-700 to-blue-500 flex flex-col justify-center items-center text-white p-10 rounded-r-3xl shadow-lg">
         <div className="text-center space-y-4">
           <div className="flex items-center justify-center space-x-2">
@@ -62,13 +126,12 @@ export default function HospitalRegistration() {
             <h1 className="text-3xl font-bold tracking-tight">CarePulse</h1>
           </div>
           <p className="text-base md:text-lg text-blue-100 max-w-xs mx-auto leading-relaxed">
-            Streamline your hospital onboarding with CarePulse — secure,
-            verified, and compliant.
+            Secure, verified, and compliant onboarding for your hospital.
           </p>
         </div>
       </div>
 
-      {/* Right section */}
+      {/* Form */}
       <div className="md:w-2/3 w-full bg-white flex items-center justify-center p-10 md:p-20">
         <div className="w-full max-w-lg space-y-8">
           <h2 className="text-3xl font-bold text-center text-blue-700">
@@ -76,7 +139,6 @@ export default function HospitalRegistration() {
           </h2>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
-            {/* Hospital Name */}
             <div>
               <label className="block text-sm font-semibold text-gray-600">
                 Hospital Name
@@ -88,11 +150,10 @@ export default function HospitalRegistration() {
                 onChange={handleChange}
                 required
                 placeholder="Enter hospital name"
-                className="mt-1 w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="mt-1 w-full border border-gray-300 rounded-lg p-3"
               />
             </div>
 
-            {/* Registration Number */}
             <div>
               <label className="block text-sm font-semibold text-gray-600">
                 Hospital Registration Number
@@ -104,11 +165,10 @@ export default function HospitalRegistration() {
                 onChange={handleChange}
                 required
                 placeholder="Official registration number"
-                className="mt-1 w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="mt-1 w-full border border-gray-300 rounded-lg p-3"
               />
             </div>
 
-            {/* Type */}
             <div>
               <label className="block text-sm font-semibold text-gray-600">
                 Type of Hospital
@@ -118,7 +178,7 @@ export default function HospitalRegistration() {
                 value={formData.type}
                 onChange={handleChange}
                 required
-                className="mt-1 w-full border border-gray-300 rounded-lg p-3 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="mt-1 w-full border border-gray-300 rounded-lg p-3 bg-white"
               >
                 <option value="">Select Type</option>
                 <option>Private</option>
@@ -128,7 +188,6 @@ export default function HospitalRegistration() {
               </select>
             </div>
 
-            {/* Location */}
             <div>
               <label className="block text-sm font-semibold text-gray-600">
                 Location
@@ -140,11 +199,10 @@ export default function HospitalRegistration() {
                 onChange={handleChange}
                 required
                 placeholder="City / State"
-                className="mt-1 w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="mt-1 w-full border border-gray-300 rounded-lg p-3"
               />
             </div>
 
-            {/* Contact & Email */}
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1">
                 <label className="block text-sm font-semibold text-gray-600">
@@ -157,7 +215,7 @@ export default function HospitalRegistration() {
                   onChange={handleChange}
                   required
                   placeholder="Helpline / Reception"
-                  className="mt-1 w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="mt-1 w-full border border-gray-300 rounded-lg p-3"
                 />
               </div>
               <div className="flex-1">
@@ -171,12 +229,11 @@ export default function HospitalRegistration() {
                   onChange={handleChange}
                   required
                   placeholder="contact@hospital.org"
-                  className="mt-1 w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="mt-1 w-full border border-gray-300 rounded-lg p-3"
                 />
               </div>
             </div>
 
-            {/* Website */}
             <div>
               <label className="block text-sm font-semibold text-gray-600">
                 Website (Optional)
@@ -187,17 +244,16 @@ export default function HospitalRegistration() {
                 value={formData.website}
                 onChange={handleChange}
                 placeholder="https://hospitalwebsite.com"
-                className="mt-1 w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="mt-1 w-full border border-gray-300 rounded-lg p-3"
               />
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
               className={`w-full ${
                 loading ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
-              } text-white font-semibold py-3 rounded-lg transition duration-200`}
+              } text-white font-semibold py-3 rounded-lg transition`}
             >
               {loading ? "Submitting..." : "Submit Registration"}
             </button>
