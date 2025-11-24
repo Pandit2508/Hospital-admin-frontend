@@ -1,26 +1,30 @@
 // firebaseAdmin.js
-import fs from "fs";
 import admin from "firebase-admin";
-import path from "path";
-import { fileURLToPath } from "url";
+import dotenv from "dotenv";
 
-// Get __dirname in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
-// Correct path to your service account key
-const serviceAccountPath = path.join(__dirname, "serviceAccountKey.json");
+// Build the service account object from environment variables
+const serviceAccount = {
+  type: process.env.FIREBASE_TYPE,
+  project_id: process.env.FIREBASE_PROJECT_ID,
+  private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+  private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  client_email: process.env.FIREBASE_CLIENT_EMAIL,
+  client_id: process.env.FIREBASE_CLIENT_ID,
+  auth_uri: process.env.FIREBASE_AUTH_URI,
+  token_uri: process.env.FIREBASE_TOKEN_URI,
+  auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_CERT_URL,
+  client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL
+};
 
-// Read and parse the JSON key
-const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
-
-// Initialize Firebase Admin
+// Initialize Firebase Admin with .env credentials
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
-// Get Firestore database reference
+// Firestore instance
 const db = admin.firestore();
 
-// Export both admin and db as named exports
+// Export admin + db
 export { admin, db };
